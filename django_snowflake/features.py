@@ -45,6 +45,7 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     supports_json_field_contains = False
     # This feature is specific to the Django fork used for testing.
     supports_limit_in_exists = False
+    supports_json_negative_indexing = False
     supports_over_clause = True
     supports_partial_indexes = False
     # https://docs.snowflake.com/en/sql-reference/functions-regexp.html#backreferences
@@ -108,6 +109,8 @@ class DatabaseFeatures(BaseDatabaseFeatures):
         'expressions.tests.BasicExpressionsTests.test_object_create_with_f_expression_in_subquery',
         # JSONField queries with complex JSON parameters don't work:
         # https://github.com/Snowflake-Labs/django-snowflake/issues/58
+        # Query: not analyzed
+        'model_fields.test_jsonfield.TestQuerying.test_cast_with_key_text_transform',
         # Query:
         #   WHERE "MODEL_FIELDS_NULLABLEJSONMODEL"."VALUE" = 'null'
         # needs to operate as:
@@ -174,6 +177,8 @@ class DatabaseFeatures(BaseDatabaseFeatures):
         'model_fields.test_jsonfield.TestSaveLoad.test_bulk_update_custom_get_prep_value',
         # AssertionError: possibly a server bug that returns the array as a string?
         'db_functions.json.test_json_array.JSONArrayTests.test_expressions',
+        # LISTAGG returns empty string rather than NULL
+        'aggregation.tests.AggregateTestCase.test_stringagg_default_value',
     }
 
     django_test_skips = {
@@ -185,6 +190,7 @@ class DatabaseFeatures(BaseDatabaseFeatures):
         },
         'Snowflake does not enforce UNIQUE constraints.': {
             'auth_tests.test_basic.BasicTestCase.test_unicode_username',
+            'auth_tests.test_management.PermissionRenameOperationsTests.test_rename_permission_conflict',
             'auth_tests.test_migrations.ProxyModelWithSameAppLabelTests.test_migrate_with_existing_target_permission',
             'composite_pk.test_create.CompositePKCreateTests.test_save_default_pk_set',
             'composite_pk.tests.CompositePKTests.test_error_on_comment_pk_conflict',
@@ -231,6 +237,7 @@ class DatabaseFeatures(BaseDatabaseFeatures):
             'aggregation.tests.AggregateAnnotationPruningTests.test_referenced_subquery_requires_wrapping',
             'aggregation.tests.AggregateTestCase.test_aggregation_subquery_annotation',
             'aggregation.tests.AggregateTestCase.test_aggregation_subquery_annotation_values',
+            'aggregation.tests.AggregateTestCase.test_string_agg_filter_in_subquery',
             'annotations.tests.NonAggregateAnnotationTestCase.test_annotation_filter_with_subquery',
             'annotations.tests.NonAggregateAnnotationTestCase.test_annotation_subquery_outerref_transform',
             'composite_pk.test_filter.CompositePKFilterTests.test_outer_ref_pk',
@@ -240,6 +247,7 @@ class DatabaseFeatures(BaseDatabaseFeatures):
             'expressions.tests.BasicExpressionsTests.test_annotation_with_deeply_nested_outerref',
             'expressions.tests.BasicExpressionsTests.test_annotation_with_nested_outerref',
             'expressions.tests.BasicExpressionsTests.test_annotation_with_outerref',
+            'expressions.tests.BasicExpressionsTests.test_annotation_with_outerref_and_output_field',
             'expressions.tests.BasicExpressionsTests.test_annotations_within_subquery',
             'expressions.tests.BasicExpressionsTests.test_nested_outerref_with_function',
             'expressions.tests.BasicExpressionsTests.test_nested_subquery',
@@ -300,6 +308,7 @@ class DatabaseFeatures(BaseDatabaseFeatures):
             'transaction_hooks.tests.TestConnectionOnCommit.test_discards_hooks_from_rolled_back_savepoint',
             'transaction_hooks.tests.TestConnectionOnCommit.test_inner_savepoint_rolled_back_with_outer',
             'transaction_hooks.tests.TestConnectionOnCommit.test_inner_savepoint_does_not_affect_outer',
+            'update_only_fields.tests.UpdateOnlyFieldsTests.test_update_fields_not_updated',
         },
         'Unused DatabaseIntrospection.get_sequences() not implemented.': {
             'introspection.tests.IntrospectionTests.test_sequence_list',
@@ -353,14 +362,12 @@ class DatabaseFeatures(BaseDatabaseFeatures):
         },
         'assertNumQueries is sometimes off because of the extra queries this '
         'backend uses to fetch an object\'s ID.': {
-            'admin_utils.test_logentry.LogEntryTests.test_log_action_fallback',
             'admin_utils.test_logentry.LogEntryTests.test_log_actions_single_object_param',
             'contenttypes_tests.test_models.ContentTypesTests.test_get_for_models_creation',
             'force_insert_update.tests.ForceInsertInheritanceTests.test_force_insert_diamond_mti',
             'force_insert_update.tests.ForceInsertInheritanceTests.test_force_insert_false',
             'force_insert_update.tests.ForceInsertInheritanceTests.test_force_insert_parent',
             'force_insert_update.tests.ForceInsertInheritanceTests.test_force_insert_with_grandparent',
-            'modeladmin.tests.ModelAdminTests.test_log_deletion_fallback',
             'model_formsets_regress.tests.FormsetTests.test_extraneous_query_is_not_run',
             'model_inheritance.tests.ModelInheritanceTests.test_create_child_no_update',
             'model_inheritance.tests.ModelInheritanceTests.test_create_diamond_mti_common_parent',
@@ -376,6 +383,7 @@ class DatabaseFeatures(BaseDatabaseFeatures):
         },
         "Snowflake: Unsupported feature 'Alter Column Set Default'.": {
             'migrations.test_operations.OperationTests.test_alter_field_add_database_default',
+            'migrations.test_operations.OperationTests.test_alter_field_add_database_default_func',
             'migrations.test_operations.OperationTests.test_alter_field_change_default_to_database_default',
             'migrations.test_operations.OperationTests.test_alter_field_change_nullable_to_database_default_not_null',
             'migrations.test_operations.OperationTests.test_alter_field_change_nullable_to_decimal_database_default_not_null',  # noqa
@@ -385,6 +393,8 @@ class DatabaseFeatures(BaseDatabaseFeatures):
         },
         "Snowflake: Unsupported: Scalar subquery with multi-column SELECT clause.": {
             'composite_pk.test_filter.CompositePKFilterTests.test_filter_comments_by_pk_exact_subquery',
+            'composite_pk.test_filter.CompositePKFilterTests.test_outer_ref_pk_filter_on_pk_comparison',
+            'composite_pk.test_filter.CompositePKFilterTests.test_outer_ref_pk_filter_on_pk_exact',
         }
     }
 

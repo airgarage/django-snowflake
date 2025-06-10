@@ -21,7 +21,6 @@ DATABASES = {
         'TEST': {'NAME': 'TEST_DJANGO_OTHER_' + str(uuid.uuid4()).upper()},
     },
 }
-DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'
 PASSWORD_HASHERS = (
     'django.contrib.auth.hashers.MD5PasswordHasher',
 )
