@@ -170,6 +170,7 @@ class DatabaseFeatures(BaseDatabaseFeatures):
         # SQL compilation error: syntax error line 1 at position 279 unexpected 'MODEL_FIELDS_NULLABLEJSONMODEL'.
         "model_fields.test_jsonfield.TestQuerying.test_lookups_special_chars_double_quotes",
         # expecting VARIANT but got VARCHAR(16777216) for column JSON_FIELD
+        'expressions.tests.BasicExpressionsTests.test_update_jsonfield_case_when_key_is_null',
         'model_fields.test_jsonfield.TestSaveLoad.test_bulk_update_custom_get_prep_value',
         # AssertionError: possibly a server bug that returns the array as a string?
         'db_functions.json.test_json_array.JSONArrayTests.test_expressions',
