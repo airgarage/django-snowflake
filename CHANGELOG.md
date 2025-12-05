@@ -1,5 +1,5 @@
 # Changelog
 
-## 5.2 - 2025-05-27
+## 6.0 - 2025-12-05
 
-Initial release for Django 5.2.x.
+Initial release for Django 6.0.x.
