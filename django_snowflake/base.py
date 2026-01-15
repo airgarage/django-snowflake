@@ -146,7 +146,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
     def get_new_connection(self, conn_params):
         if not hasattr(self, 'pool'):
             print("[SNOWFLAKE]Creating pool")
-            self.pool = pool.QueuePool(self.create_connection, max_overflow=10, pool_size=5)
+            self.pool = pool.QueuePool(lambda: self.create_connection(conn_params), max_overflow=10, pool_size=5)
             
         print("[SNOWFLAKE] Getting connection from pool")
         return self.pool.connect()
