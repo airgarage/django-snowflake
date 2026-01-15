@@ -18,6 +18,7 @@ from .introspection import DatabaseIntrospection            # NOQA isort:skip
 from .operations import DatabaseOperations                  # NOQA isort:skip
 from .schema import DatabaseSchemaEditor                    # NOQA isort:skip
 
+snowflake.connector.connection_pool.enabled = True
 
 class DatabaseWrapper(BaseDatabaseWrapper):
     vendor = 'snowflake'
