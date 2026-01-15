@@ -2,9 +2,9 @@ __version__ = '6.0'
 
 # Check Django compatibility before other imports which may fail if the
 # wrong version of Django is installed.
-from .utils import check_django_compatability
+# from .utils import check_django_compatability
 
-check_django_compatability()
+# check_django_compatability()
 
 from .aggregates import register_aggregates  # noqa
 from .expressions import register_expressions  # noqa
