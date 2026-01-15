@@ -1,6 +1,5 @@
 from django.db import NotSupportedError
 from django.db.backends.base.schema import BaseDatabaseSchemaEditor
-from django.db.models import NOT_PROVIDED
 
 
 class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
@@ -61,7 +60,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         # defaults for this, but Snowflake doesn't allow dropping a default
         # value for columns added after the table is created.
         effective_default = self.effective_default(field)
-        if effective_default is not None and field.db_default is NOT_PROVIDED:
+        if effective_default is not None:
             self.execute(
                 "UPDATE %(table)s SET %(column)s=%%s" % {
                     "table": self.quote_name(model._meta.db_table),
@@ -85,7 +84,6 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             )
 
     def column_sql(self, model, field, include_default=False, exclude_not_null=False):
-        params = []
         # Get the column's type and use that as the basis of the SQL
         db_params = field.db_parameters(connection=self.connection)
         sql = db_params["type"]
@@ -95,22 +93,15 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         collation = db_params.get('collation')
         if collation:
             sql += self._collate_sql(collation)
-        if field.generated:
-            sql += self._column_generated_sql(field)
         if not field.null and not exclude_not_null:
             sql += " NOT NULL"
-        # Add database default.
-        if field.db_default is not NOT_PROVIDED:
-            default_sql, default_params = self.db_default_sql(field)
-            sql += f" DEFAULT {default_sql}"
-            params.extend(default_params)
         if field.primary_key:
             sql += " PRIMARY KEY"
         if field.unique:
             sql += " UNIQUE"
         if field.db_comment:
             sql += self._comment_sql(field.db_comment)
-        return sql, params
+        return sql, []
 
     def _collate_sql(self, collation, old_collation=None, table_name=None):
         # Collation must be single quoted instead of double quoted.
@@ -160,21 +151,11 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
                 },
             })
 
-    def _column_generated_sql(self, field):
-        """Return the SQL to use in a GENERATED ALWAYS clause."""
-        expression_sql, params = field.generated_sql(self.connection)
-        if params:
-            expression_sql = expression_sql % tuple(self.quote_value(p) for p in params)
-        return f" AS ({expression_sql})"
-
     def quote_value(self, value):
         if isinstance(value, str):
             return "'%s'" % value.replace("'", "\\'")
         else:
             return str(value)
-
-    def prepare_default(self, value):
-        return self.quote_value(value).replace("%", "%%")
 
     def skip_default_on_alter(self, field):
         # Snowflake: Unsupported feature 'Alter Column Set Default'.
