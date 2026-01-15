@@ -138,14 +138,23 @@ class DatabaseWrapper(BaseDatabaseWrapper):
 
         return conn_params
     
-    def get_conn(self, conn_params):
+    def create_connection(self, conn_params):
+        print("[SNOWFLAKE] Creating connection")
         return Database.connect(**conn_params)
 
     @async_unsafe
     def get_new_connection(self, conn_params):
         if not hasattr(self, 'pool'):
-            self.pool = pool.QueuePool(lambda: Database.connect(**conn_params), max_overflow=10, pool_size=5)
+            print("[SNOWFLAKE]Creating pool")
+            self.pool = pool.QueuePool(self.create_connection, max_overflow=10, pool_size=5)
+            
+        print("[SNOWFLAKE] Getting connection from pool")
         return self.pool.connect()
+    
+    @async_unsafe
+    def close(self):
+        print(f"[SNOWFLAKE] Closing connection: {self.connection}")
+        super().close()
 
     def ensure_timezone(self):
         if self.connection is None:
