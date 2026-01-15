@@ -16,7 +16,7 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     create_test_procedure_with_int_param_sql = """
         CREATE OR REPLACE PROCEDURE test_procedure(value integer) RETURNS varchar LANGUAGE PYTHON
             HANDLER = 'run'
-            RUNTIME_VERSION = '3.12'
+            RUNTIME_VERSION = '3.8'
             PACKAGES = ('snowflake-snowpark-python')
         AS
         $$def run(session, value): pass
@@ -29,9 +29,6 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     has_json_object_function = False
     indexes_foreign_keys = False
     nulls_order_largest = True
-    # At least for DecimalField, Snowflake errors with "Default value data type
-    # does not match data type for column" if the default isn't serialized.
-    requires_literal_defaults = True
     supported_explain_formats = {'JSON', 'TABULAR', 'TEXT'}
     supports_comments = True
     supports_comments_inline = True
@@ -45,7 +42,6 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     supports_json_field_contains = False
     # This feature is specific to the Django fork used for testing.
     supports_limit_in_exists = False
-    supports_json_negative_indexing = False
     supports_over_clause = True
     supports_partial_indexes = False
     # https://docs.snowflake.com/en/sql-reference/functions-regexp.html#backreferences
@@ -54,12 +50,13 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     supports_slicing_ordering_in_compound = True
     supports_subqueries_in_group_by = False
     supports_temporal_subtraction = True
-    supports_transactions = True
+    # This really means "supports_nested_transactions". Snowflake supports a
+    # single level of transaction, BEGIN + (ROLLBACK|COMMIT). Multiple BEGINS
+    # contribute to the current (only) transaction.
+    supports_transactions = False
     # This feature is specific to the Django fork used for testing.
     supports_tz_offsets = False
-    supports_virtual_generated_columns = True
     uses_savepoints = False
-    ignores_table_name_case = True
     test_collations = {
         'ci': 'en-ci',
         # Snowflake: case-sensitive always returns the lowercase version of a
@@ -68,7 +65,6 @@ class DatabaseFeatures(BaseDatabaseFeatures):
         'cs': None,
         'non_default': 'en-ci',
         'swedish_ci': 'sv-ci',
-        'virtual': None,
     }
     test_now_utc_template = 'SYSDATE()'
 
@@ -109,8 +105,6 @@ class DatabaseFeatures(BaseDatabaseFeatures):
         'expressions.tests.BasicExpressionsTests.test_object_create_with_f_expression_in_subquery',
         # JSONField queries with complex JSON parameters don't work:
         # https://github.com/Snowflake-Labs/django-snowflake/issues/58
-        # Query: not analyzed
-        'model_fields.test_jsonfield.TestQuerying.test_cast_with_key_text_transform',
         # Query:
         #   WHERE "MODEL_FIELDS_NULLABLEJSONMODEL"."VALUE" = 'null'
         # needs to operate as:
@@ -135,14 +129,6 @@ class DatabaseFeatures(BaseDatabaseFeatures):
         # needs to operate as:
         #   WHERE TO_JSON("MODEL_FIELDS_NULLABLEJSONMODEL"."VALUE":bar) IN (PARSE_JSON('["foo", "bar"]'))
         'model_fields.test_jsonfield.TestQuerying.test_key_in',
-        # Invalid argument types for function 'GET': (VARCHAR(14), VARCHAR(3))
-        'constraints.tests.CheckConstraintTests.test_validate_jsonfield_exact',
-        'model_fields.test_jsonfield.TestQuerying.test_has_key_literal_lookup',
-        'model_fields.test_jsonfield.TestQuerying.test_literal_annotation_filtering',
-        # This isn't compatible with the SELECT ... FROM VALUES workaround
-        # for inserting JSON data. In other words, this query doesn't work:
-        # SELECT parse_json($1) FROM VALUES (DEFAULT);
-        'schema.tests.SchemaTests.test_db_default_output_field_resolving',
         # QuerySet.bulk_update() not supported for JSONField:
         # Expression type does not match column data type, expecting VARIANT
         # but got VARCHAR(16777216) for column JSON_FIELD
@@ -165,20 +151,6 @@ class DatabaseFeatures(BaseDatabaseFeatures):
         # Zero pk validation not added yet.
         'backends.tests.MySQLPKZeroTests.test_zero_as_autoval',
         'bulk_create.tests.BulkCreateTests.test_zero_as_autoval',
-        # Snowflake returns 'The Name::42.00000'.
-        'db_functions.text.test_concat.ConcatTests.test_concat_non_str',
-        # To debug (wrong results):
-        # https://github.com/django/django/commit/b28438f379049e5ee1a89067e9cc14b7d0da07c
-        "model_fields.test_jsonfield.TestQuerying.test_lookups_special_chars",
-        # SQL compilation error: syntax error line 1 at position 279 unexpected 'MODEL_FIELDS_NULLABLEJSONMODEL'.
-        "model_fields.test_jsonfield.TestQuerying.test_lookups_special_chars_double_quotes",
-        # expecting VARIANT but got VARCHAR(16777216) for column JSON_FIELD
-        'expressions.tests.BasicExpressionsTests.test_update_jsonfield_case_when_key_is_null',
-        'model_fields.test_jsonfield.TestSaveLoad.test_bulk_update_custom_get_prep_value',
-        # AssertionError: possibly a server bug that returns the array as a string?
-        'db_functions.json.test_json_array.JSONArrayTests.test_expressions',
-        # LISTAGG returns empty string rather than NULL
-        'aggregation.tests.AggregateTestCase.test_stringagg_default_value',
     }
 
     django_test_skips = {
@@ -190,16 +162,11 @@ class DatabaseFeatures(BaseDatabaseFeatures):
         },
         'Snowflake does not enforce UNIQUE constraints.': {
             'auth_tests.test_basic.BasicTestCase.test_unicode_username',
-            'auth_tests.test_management.PermissionRenameOperationsTests.test_rename_permission_conflict',
             'auth_tests.test_migrations.ProxyModelWithSameAppLabelTests.test_migrate_with_existing_target_permission',
-            'composite_pk.test_create.CompositePKCreateTests.test_save_default_pk_set',
-            'composite_pk.tests.CompositePKTests.test_error_on_comment_pk_conflict',
-            'composite_pk.tests.CompositePKTests.test_error_on_user_pk_conflict',
             'constraints.tests.UniqueConstraintTests.test_database_constraint',
             'contenttypes_tests.test_operations.ContentTypeOperationsTests.test_content_type_rename_conflict',
             'contenttypes_tests.test_operations.ContentTypeOperationsTests.test_existing_content_type_rename',
             'custom_pk.tests.CustomPKTests.test_unique_pk',
-            'force_insert_update.tests.ForceInsertInheritanceTests.test_force_insert_with_existing_grandparent',
             'get_or_create.tests.GetOrCreateTestsWithManualPKs.test_create_with_duplicate_primary_key',
             'get_or_create.tests.GetOrCreateTestsWithManualPKs.test_savepoint_rollback',
             'get_or_create.tests.GetOrCreateThroughManyToMany.test_something',
@@ -213,17 +180,21 @@ class DatabaseFeatures(BaseDatabaseFeatures):
             'introspection.tests.IntrospectionTests.test_get_constraints_index_types',
             'migrations.test_operations.OperationTests.test_add_index',
             'migrations.test_operations.OperationTests.test_alter_field_with_index',
+            'migrations.test_operations.OperationTests.test_alter_index_together',
             'migrations.test_operations.OperationTests.test_remove_index',
             'migrations.test_operations.OperationTests.test_rename_index',
             'migrations.test_operations.OperationTests.test_rename_index_unnamed_index',
             'schema.tests.SchemaTests.test_add_remove_index',
             'schema.tests.SchemaTests.test_alter_field_add_index_to_integerfield',
+            'schema.tests.SchemaTests.test_create_index_together',
             'schema.tests.SchemaTests.test_index_together',
+            'schema.tests.SchemaTests.test_index_together_with_fk',
             'schema.tests.SchemaTests.test_indexes',
             'schema.tests.SchemaTests.test_order_index',
             'schema.tests.SchemaTests.test_remove_constraints_capital_letters',
             'schema.tests.SchemaTests.test_remove_db_index_doesnt_remove_custom_indexes',
             'schema.tests.SchemaTests.test_remove_field_unique_does_not_remove_meta_constraints',
+            'schema.tests.SchemaTests.test_remove_index_together_does_not_remove_meta_indexes',
             'schema.tests.SchemaTests.test_remove_unique_together_does_not_remove_meta_constraints',
             'schema.tests.SchemaTests.test_text_field_with_db_index',
         },
@@ -237,17 +208,14 @@ class DatabaseFeatures(BaseDatabaseFeatures):
             'aggregation.tests.AggregateAnnotationPruningTests.test_referenced_subquery_requires_wrapping',
             'aggregation.tests.AggregateTestCase.test_aggregation_subquery_annotation',
             'aggregation.tests.AggregateTestCase.test_aggregation_subquery_annotation_values',
-            'aggregation.tests.AggregateTestCase.test_string_agg_filter_in_subquery',
             'annotations.tests.NonAggregateAnnotationTestCase.test_annotation_filter_with_subquery',
             'annotations.tests.NonAggregateAnnotationTestCase.test_annotation_subquery_outerref_transform',
-            'composite_pk.test_filter.CompositePKFilterTests.test_outer_ref_pk',
             'db_functions.datetime.test_extract_trunc.DateFunctionTests.test_extract_outerref',
             'db_functions.datetime.test_extract_trunc.DateFunctionTests.test_trunc_subquery_with_parameters',
             'expressions.tests.BasicExpressionsTests.test_aggregate_subquery_annotation',
             'expressions.tests.BasicExpressionsTests.test_annotation_with_deeply_nested_outerref',
             'expressions.tests.BasicExpressionsTests.test_annotation_with_nested_outerref',
             'expressions.tests.BasicExpressionsTests.test_annotation_with_outerref',
-            'expressions.tests.BasicExpressionsTests.test_annotation_with_outerref_and_output_field',
             'expressions.tests.BasicExpressionsTests.test_annotations_within_subquery',
             'expressions.tests.BasicExpressionsTests.test_nested_outerref_with_function',
             'expressions.tests.BasicExpressionsTests.test_nested_subquery',
@@ -259,9 +227,7 @@ class DatabaseFeatures(BaseDatabaseFeatures):
             'expressions.tests.BasicExpressionsTests.test_subquery_in_filter',
             'expressions.tests.FTimeDeltaTests.test_date_subquery_subtraction',
             'expressions.tests.FTimeDeltaTests.test_datetime_subquery_subtraction',
-            'expressions.tests.IterableLookupInnerExpressionsTests.test_relabeled_clone_rhs',
             'expressions_window.tests.WindowFunctionTests.test_subquery_row_range_rank',
-            'foreign_object.test_tuple_lookups.TupleLookupsTests.test_in_subquery',
             'lookup.tests.LookupQueryingTests.test_filter_subquery_lhs',
             'lookup.tests.LookupTests.test_nested_outerref_lhs',
             'model_fields.test_jsonfield.TestQuerying.test_nested_key_transform_on_subquery',
@@ -270,11 +236,12 @@ class DatabaseFeatures(BaseDatabaseFeatures):
             'queries.test_qs_combinators.QuerySetSetOperationTests.test_union_in_subquery_related_outerref',
             'queries.tests.ExcludeTests.test_exclude_subquery',
             'queries.tests.ExcludeTests.test_subquery_exclude_outerref',
+            'queries.tests.ExcludeTests.test_ticket14511',
+            'queries.tests.TestTicket24605.test_ticket_24605',
         },
         'Snowflake: Window function type [ROW_NUMBER] requires ORDER BY in '
         'window specification.': {
              'expressions_window.tests.WindowFunctionTests.test_row_number_no_ordering',
-             'prefetch_related.tests.PrefetchLimitTests.test_empty_order',
         },
         # https://github.com/Snowflake-Labs/django-snowflake/issues/40
         'DatabaseOperations.sequence_reset_sql() must be implemented for this test.': {
@@ -286,7 +253,6 @@ class DatabaseFeatures(BaseDatabaseFeatures):
             'db_functions.comparison.test_cast.CastTests.test_cast_to_char_field_with_max_length',
         },
         'Snowflake does not support nested transactions.': {
-            'admin_changelist.tests.ChangeListTests.test_list_editable_atomicity',
             'admin_inlines.tests.TestReadOnlyChangeViewInlinePermissions.test_add_url_not_allowed',
             'admin_views.tests.AdminViewBasicTest.test_disallowed_to_field',
             'admin_views.tests.AdminViewPermissionsTest.test_add_view',
@@ -308,7 +274,6 @@ class DatabaseFeatures(BaseDatabaseFeatures):
             'transaction_hooks.tests.TestConnectionOnCommit.test_discards_hooks_from_rolled_back_savepoint',
             'transaction_hooks.tests.TestConnectionOnCommit.test_inner_savepoint_rolled_back_with_outer',
             'transaction_hooks.tests.TestConnectionOnCommit.test_inner_savepoint_does_not_affect_outer',
-            'update_only_fields.tests.UpdateOnlyFieldsTests.test_update_fields_not_updated',
         },
         'Unused DatabaseIntrospection.get_sequences() not implemented.': {
             'introspection.tests.IntrospectionTests.test_sequence_list',
@@ -362,15 +327,9 @@ class DatabaseFeatures(BaseDatabaseFeatures):
         },
         'assertNumQueries is sometimes off because of the extra queries this '
         'backend uses to fetch an object\'s ID.': {
-            'admin_utils.test_logentry.LogEntryTests.test_log_actions_single_object_param',
             'contenttypes_tests.test_models.ContentTypesTests.test_get_for_models_creation',
-            'force_insert_update.tests.ForceInsertInheritanceTests.test_force_insert_diamond_mti',
-            'force_insert_update.tests.ForceInsertInheritanceTests.test_force_insert_false',
-            'force_insert_update.tests.ForceInsertInheritanceTests.test_force_insert_parent',
-            'force_insert_update.tests.ForceInsertInheritanceTests.test_force_insert_with_grandparent',
             'model_formsets_regress.tests.FormsetTests.test_extraneous_query_is_not_run',
             'model_inheritance.tests.ModelInheritanceTests.test_create_child_no_update',
-            'model_inheritance.tests.ModelInheritanceTests.test_create_diamond_mti_common_parent',
         },
         'It can be problematic if a model instance is manually assigned a pk value.': {
             'contenttypes_tests.test_views.ContentTypesViewsSiteRelTests.test_shortcut_view_with_null_site_fk',
@@ -381,21 +340,6 @@ class DatabaseFeatures(BaseDatabaseFeatures):
         'This test takes on order of an hour due to 2,000 inserts.': {
             'delete.tests.DeletionTests.test_large_delete_related',
         },
-        "Snowflake: Unsupported feature 'Alter Column Set Default'.": {
-            'migrations.test_operations.OperationTests.test_alter_field_add_database_default',
-            'migrations.test_operations.OperationTests.test_alter_field_add_database_default_func',
-            'migrations.test_operations.OperationTests.test_alter_field_change_default_to_database_default',
-            'migrations.test_operations.OperationTests.test_alter_field_change_nullable_to_database_default_not_null',
-            'migrations.test_operations.OperationTests.test_alter_field_change_nullable_to_decimal_database_default_not_null',  # noqa
-        },
-        "Snowflake: Invalid column default expression [PI()].": {
-            'migrations.test_operations.OperationTests.test_add_field_database_default_function',
-        },
-        "Snowflake: Unsupported: Scalar subquery with multi-column SELECT clause.": {
-            'composite_pk.test_filter.CompositePKFilterTests.test_filter_comments_by_pk_exact_subquery',
-            'composite_pk.test_filter.CompositePKFilterTests.test_outer_ref_pk_filter_on_pk_comparison',
-            'composite_pk.test_filter.CompositePKFilterTests.test_outer_ref_pk_filter_on_pk_exact',
-        }
     }
 
     @cached_property
