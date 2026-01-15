@@ -9,6 +9,11 @@ try:
 except ImportError as e:
     raise ImproperlyConfigured("Error loading snowflake connector module: %s" % e)
 
+try:
+    import sqlalchemy.pool as pool
+except ImportError as e:
+    raise ImproperlyConfigured("Error loading sqlalchemy module: %s" % e)
+
 # Some of these import snowflake connector, so import them after checking if it's installed.
 from . import __version__                                   # NOQA isort:skip
 from .client import DatabaseClient                          # NOQA isort:skip
@@ -18,7 +23,7 @@ from .introspection import DatabaseIntrospection            # NOQA isort:skip
 from .operations import DatabaseOperations                  # NOQA isort:skip
 from .schema import DatabaseSchemaEditor                    # NOQA isort:skip
 
-Database.connection_pool.enabled = True
+
 
 class DatabaseWrapper(BaseDatabaseWrapper):
     vendor = 'snowflake'
@@ -132,10 +137,15 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             raise ImproperlyConfigured(self.settings_is_missing % 'SCHEMA')
 
         return conn_params
+    
+    def get_conn(self, conn_params):
+        return Database.connect(**conn_params)
 
     @async_unsafe
     def get_new_connection(self, conn_params):
-        return Database.connect(**conn_params)
+        if not hasattr(self, 'pool'):
+            self.pool = pool.QueuePool(lambda: Database.connect(**conn_params), max_overflow=10, pool_size=5)
+        return self.pool.connect()
 
     def ensure_timezone(self):
         if self.connection is None:
