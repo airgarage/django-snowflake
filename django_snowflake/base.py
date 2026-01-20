@@ -18,7 +18,7 @@ except ImportError as e:
     raise ImproperlyConfigured("Error loading sqlalchemy module: %s" % e)
 
 try:
-    import snowflake.sqlalchemy.snowdialect import SnowflakeDialect
+    from snowflake.sqlalchemy.snowdialect import SnowflakeDialect
 except ImportError as e:
     raise ImproperlyConfigured("Error loading snowflake.sqlalchemy module: %s" % e)
 
