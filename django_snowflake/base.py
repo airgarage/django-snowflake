@@ -186,6 +186,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
     def get_new_connection(self, conn_params):
         if self.should_use_pool(conn_params):
             self.create_pool_if_not_exists(conn_params)
+            
             logger.info(f"Getting connection from pool for {self.alias}.")
             return POOL_CONTAINER.get(self.alias).connect()
         
