@@ -160,7 +160,6 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         return conn_params.get('pool', False)
     
     def create_pool_if_not_exists(self, conn_params):
-        print(f"Attempting to add pool for {self.alias}.")
         if POOL_CONTAINER.has(self.alias):
             return
         
@@ -175,12 +174,10 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         params = {k: conn_params[k] for k in conn_params.keys() - {"pool","max_overflow", "pool_size", "pre_ping"}}
         
         logger.info(f"Creating pool for {self.alias} with params: {kwargs}")
-        print(f"Creating pool for {self.alias} with params: {kwargs}")
         POOL_CONTAINER.set(self.alias, pool.QueuePool(lambda: self.create_connection(params), **kwargs))
 
     @async_unsafe
     def get_new_connection(self, conn_params):
-        print(f"Should use pool: {self.should_use_pool(conn_params)}.")
         if self.should_use_pool(conn_params):
             self.create_pool_if_not_exists(conn_params)
             logger.info(f"Getting connection from pool for {self.alias}.")
