@@ -10,7 +10,8 @@ class ConnectionPool(dict):
     lock = threading.Lock()
 
     def has(self, pool_name: str) -> bool:
-        return pool_name in self
+        with self.lock:
+            return pool_name in self
 
     def set(self, pool_name: str, pool: Any) -> None:
         with self.lock:
