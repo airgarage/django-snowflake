@@ -22,6 +22,12 @@ DATABASES = {
         'USER': 'my_user',
         'PASSWORD': 'my_password',
         'ACCOUNT': 'my_account',
+        'POOL': {
+            'IS_ENABLED': True,
+            'MAX_OVERFLOW': 10,
+            'POOL_SIZE': 5,
+            'PRE_PING': True
+        },
         # Include 'OPTIONS' if you need to specify any other
         # snowflake.connector.connect() parameters, documented at:
         # https://docs.snowflake.com/en/user-guide/python-connector-api.html#connect
