@@ -1,13 +1,21 @@
 import os
 
 from django.core.exceptions import ImproperlyConfigured
-from django.db.backends.base.base import BaseDatabaseWrapper
+from django.db.backends.base.base import NO_DB_ALIAS, BaseDatabaseWrapper
 from django.utils.asyncio import async_unsafe
+from django_snowflake.pool import POOL_CONTAINER
+import logging
+
 
 try:
     import snowflake.connector as Database
 except ImportError as e:
     raise ImproperlyConfigured("Error loading snowflake connector module: %s" % e)
+
+try:
+    import sqlalchemy.pool as pool
+except ImportError as e:
+    raise ImproperlyConfigured("Error loading sqlalchemy module: %s" % e)
 
 # Some of these import snowflake connector, so import them after checking if it's installed.
 from . import __version__                                   # NOQA isort:skip
@@ -18,7 +26,8 @@ from .introspection import DatabaseIntrospection            # NOQA isort:skip
 from .operations import DatabaseOperations                  # NOQA isort:skip
 from .schema import DatabaseSchemaEditor                    # NOQA isort:skip
 
-snowflake.connector.connection_pool.enabled = True
+
+logger = logging.getLogger(__name__)
 
 class DatabaseWrapper(BaseDatabaseWrapper):
     vendor = 'snowflake'
@@ -130,12 +139,55 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             conn_params['schema'] = self.ops.quote_name(settings_dict['SCHEMA'])
         else:
             raise ImproperlyConfigured(self.settings_is_missing % 'SCHEMA')
-
+        
+        pool_config = settings_dict.get('POOL', {})
+        if pool_config.get('IS_ENABLED', False):
+            conn_params['pool'] = True
+            conn_params['max_overflow'] = pool_config.get('MAX_OVERFLOW', 10)
+            conn_params['pool_size'] = pool_config.get('POOL_SIZE', 5)
+            conn_params['pre_ping'] = pool_config.get('PRE_PING', True)
+            
         return conn_params
+    
+    def create_connection(self, conn_params):
+        return Database.connect(**conn_params)
+    
+    def should_use_pool(self, conn_params):
+        if self.alias == NO_DB_ALIAS:
+            return False
+        
+        # Do we have pooling enabled in the config.
+        return conn_params.get('pool', False)
+    
+    def create_pool_if_not_exists(self, conn_params):
+        print(f"Attempting to add pool for {self.alias}.")
+        if POOL_CONTAINER.has(self.alias):
+            return
+        
+        kwargs = {
+            # Max number of connections to allow in the pool if high traffic.
+            'max_overflow': conn_params.get('max_overflow'), 
+            # Max number of connections in pool.
+            'pool_size': conn_params.get('pool_size'),
+            # Check connection is still valid before using.
+            'pre_ping': conn_params.get('pre_ping'),
+        }
+        params = {k: conn_params[k] for k in conn_params.keys() - {"pool","max_overflow", "pool_size", "pre_ping"}}
+        
+        logger.info(f"Creating pool for {self.alias} with params: {kwargs}")
+        print(f"Creating pool for {self.alias} with params: {kwargs}")
+        POOL_CONTAINER.set(self.alias, pool.QueuePool(lambda: self.create_connection(params), **kwargs))
 
     @async_unsafe
     def get_new_connection(self, conn_params):
-        return Database.connect(**conn_params)
+        print(f"Should use pool: {self.should_use_pool(conn_params)}.")
+        if self.should_use_pool(conn_params):
+            self.create_pool_if_not_exists(conn_params)
+            logger.info(f"Getting connection from pool for {self.alias}.")
+            return POOL_CONTAINER.get(self.alias).connect()
+        
+        logger.info(f"Creating new connection for {self.alias}.")
+        return self.create_connection(conn_params)
 
     def ensure_timezone(self):
         if self.connection is None:
