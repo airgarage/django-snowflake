@@ -17,6 +17,11 @@ try:
 except ImportError as e:
     raise ImproperlyConfigured("Error loading sqlalchemy module: %s" % e)
 
+try:
+    import snowflake.sqlalchemy.snowdialect import SnowflakeDialect
+except ImportError as e:
+    raise ImproperlyConfigured("Error loading snowflake.sqlalchemy module: %s" % e)
+
 # Some of these import snowflake connector, so import them after checking if it's installed.
 from . import __version__                                   # NOQA isort:skip
 from .client import DatabaseClient                          # NOQA isort:skip
@@ -170,6 +175,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             'pool_size': conn_params.get('pool_size'),
             # Check connection is still valid before using.
             'pre_ping': conn_params.get('pre_ping'),
+            'dialect': SnowflakeDialect(),
         }
         params = {k: conn_params[k] for k in conn_params.keys() - {"pool","max_overflow", "pool_size", "pre_ping"}}
         
