@@ -1,4 +1,6 @@
-__version__ = '4.2.3'
+__version__ = "4.2.3"
+
+default_app_config = "django_snowflake.apps.DjangoSnowflakeConfig"
 
 from .expressions import register_expressions  # noqa
 from .functions import register_functions  # noqa
