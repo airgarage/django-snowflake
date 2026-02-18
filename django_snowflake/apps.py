@@ -39,7 +39,7 @@ class DjangoSnowflakeConfig(AppConfig):
 
         return databases
 
-    def _warm_connection_pools_background(self):
+    def _warm_connection_pools(self):
         """
         Warm up connection pools for Snowflake databases that have pooling enabled.
         This runs in a background thread to avoid blocking Django startup.
@@ -113,7 +113,7 @@ class DjangoSnowflakeConfig(AppConfig):
             )
 
             self._warmup_thread = threading.Thread(
-                target=self._warm_connection_pools_background,
+                target=self._warm_connection_pools,
                 name="django_snowflake_pool_warmer",
                 daemon=True,
             )
