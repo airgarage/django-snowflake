@@ -1,9 +1,13 @@
-from typing import Optional, List
 import atexit
 import logging
+import os
+import sys
 import threading
+from typing import List, Optional
 
 from django.apps import AppConfig
+
+from django_snowflake.utils import is_running_tests
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +49,7 @@ class DjangoSnowflakeConfig(AppConfig):
         This runs in a background thread to avoid blocking Django startup.
         """
         from django.db import connections
+
         from .pool import POOL_CONTAINER
 
         databases_to_warm = []
@@ -100,7 +105,11 @@ class DjangoSnowflakeConfig(AppConfig):
         Called when Django starts up. This is where we warm up connection pools
         for any databases using the Snowflake backend that have pooling enabled.
         """
-        logger.debug("DjangoSnowflakeConfig.ready() called - initiating pool warming")
+        if is_running_tests():
+            logger.debug("Test environment detected - skipping pool warming")
+            return
+
+        logger.info("DjangoSnowflakeConfig.ready() called - initiating pool warming")
 
         with self._warmup_lock:
             if self._has_warmup_started:

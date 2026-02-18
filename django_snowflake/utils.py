@@ -1,3 +1,6 @@
+import os
+import sys
+
 import django
 from django.core.exceptions import ImproperlyConfigured
 from django.utils.version import get_version_tuple
@@ -20,3 +23,24 @@ def check_django_compatability():
                 C=__version__,
             )
         )
+
+
+def is_running_tests() -> bool:
+    """
+    Detect if we're running in a test environment.
+    Returns True if tests are being run, False otherwise.
+    """
+    if "test" in sys.argv:
+        return True
+
+    if "pytest" in sys.argv[0] or any("pytest" in arg for arg in sys.argv):
+        return True
+
+    if os.environ.get("PYTEST_CURRENT_TEST"):
+        return True
+
+    settings_module = os.environ.get("DJANGO_SETTINGS_MODULE", "")
+    if "test" in settings_module.lower():
+        return True
+
+    return False
