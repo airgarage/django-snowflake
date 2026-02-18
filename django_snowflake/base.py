@@ -6,6 +6,7 @@ from django.db.backends.base.base import NO_DB_ALIAS, BaseDatabaseWrapper
 from django.utils.asyncio import async_unsafe
 
 from django_snowflake.pool import POOL_CONTAINER
+from django_snowflake.utils import is_running_tests
 
 try:
     import snowflake.connector as Database
@@ -161,7 +162,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         return Database.connect(**conn_params)
 
     def should_use_pool(self, conn_params):
-        if self.alias == NO_DB_ALIAS:
+        if self.alias == NO_DB_ALIAS or is_running_tests():
             return False
 
         # Do we have pooling enabled in the config.
