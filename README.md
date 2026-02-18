@@ -1,5 +1,23 @@
 # Snowflake backend for Django
 
+## AirGarage Specific Notes
+
+### Testing
+
+To test Django Snowflake locally, update `dev_requirements.txt` in the Django project you want to test in.
+You need to tell pip to autoload the package so it picks up any new changes, you can do this by replacing `django-snowflake` in that `dev_requirements.txt` file to:
+
+**Replace all of this**
+```python
+django-snowflake @ git+https://github.com/airgarage/django-snowflake.git@[hash]
+```
+
+
+**With this**
+```python
+-e [path_to_django_snowflake_project] # For me (Dylan) it's under /Users/dylan/projects/django-snowflake
+```
+
 ## Install and usage
 
 Use the version of django-snowflake that corresponds to your version of
@@ -138,7 +156,7 @@ LOGGING = {
     …
     "loggers": {
         …
-        "snowflake.connector": {
+        "django_snowflake": {
             "level": "DEBUG",
             "handlers": ["console"],
         },

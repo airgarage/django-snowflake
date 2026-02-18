@@ -1,11 +1,18 @@
 from django.db.models.functions import (
-    SHA224, SHA256, SHA384, SHA512, Ceil, Collate, ConcatPair, Random,
+    SHA224,
+    SHA256,
+    SHA384,
+    SHA512,
+    Ceil,
+    Collate,
+    ConcatPair,
+    Random,
     StrIndex,
 )
 
 
 def ceil(self, compiler, connection, **extra_context):
-    return self.as_sql(compiler, connection, function='CEIL', **extra_context)
+    return self.as_sql(compiler, connection, function="CEIL", **extra_context)
 
 
 def collate(self, compiler, connection, **extra_context):
@@ -16,7 +23,7 @@ def collate(self, compiler, connection, **extra_context):
         # Snowflake requires single quotes instead of double quotes.
         collation=f"'{self.collation}'",
         # COLLATE(<string_expression>, '<collation_specification>')
-        template='%(function)s(%(expressions)s, %(collation)s)',
+        template="%(function)s(%(expressions)s, %(collation)s)",
         **extra_context,
     )
 
@@ -27,7 +34,7 @@ def concatpair(self, compiler, connection, **extra_context):
 
 
 def random(self, compiler, connection, **extra_context):
-    template = 'UNIFORM(0, 0.99999999999999999, RANDOM())'
+    template = "UNIFORM(0, 0.99999999999999999, RANDOM())"
     return self.as_sql(compiler, connection, template=template, **extra_context)
 
 
@@ -37,7 +44,7 @@ def strindex(self, compiler, connection, **extra_context):
     return StrIndex(
         self.source_expressions[1],
         self.source_expressions[0],
-    ).as_sql(compiler, connection, function='POSITION', **extra_context)
+    ).as_sql(compiler, connection, function="POSITION", **extra_context)
 
 
 def register_functions():

@@ -30,9 +30,9 @@ class SQLInsertCompiler(compiler.SQLInsertCompiler):
             for i, field in enumerate(fields, 1):
                 if isinstance(field, JSONField):
                     has_json_field = True
-                    select_columns.append(f'parse_json(${i})')
+                    select_columns.append(f"parse_json(${i})")
                 else:
-                    select_columns.append(f'${i}')
+                    select_columns.append(f"${i}")
             if not has_json_field:
                 select_columns = []
         else:
@@ -83,7 +83,7 @@ class SQLInsertCompiler(compiler.SQLInsertCompiler):
             return [(" ".join(result), tuple(chain.from_iterable(params)))]
 
         if select_columns:
-            result.append('SELECT ' + (", ".join(c for c in select_columns)) + ' FROM')
+            result.append("SELECT " + (", ".join(c for c in select_columns)) + " FROM")
 
         if can_bulk:
             result.append(self.connection.ops.bulk_insert_sql(fields, placeholder_rows))

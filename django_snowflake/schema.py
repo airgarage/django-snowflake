@@ -4,13 +4,13 @@ from django.db.backends.base.schema import BaseDatabaseSchemaEditor
 
 class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
     sql_create_column_inline_fk = (
-        'CONSTRAINT %(name)s FOREIGN KEY REFERENCES %(to_table)s(%(to_column)s)'
+        "CONSTRAINT %(name)s FOREIGN KEY REFERENCES %(to_table)s(%(to_column)s)"
     )
-    sql_delete_procedure = 'DROP PROCEDURE %(procedure)s(%(param_types)s)'
+    sql_delete_procedure = "DROP PROCEDURE %(procedure)s(%(param_types)s)"
 
     def _create_index_sql(self, model, fields=None, **kwargs):
         # Snowflake doesn't use indexes.
-        return ''
+        return ""
 
     def _model_indexes_sql(self, model):
         return []
@@ -40,14 +40,16 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             definition += f" {col_type_suffix}"
         if field.remote_field and field.db_constraint:
             # Add FK constraint inline.
-            constraint_suffix = '_fk_%(to_table)s_%(to_column)s'
+            constraint_suffix = "_fk_%(to_table)s_%(to_column)s"
             to_table = field.remote_field.model._meta.db_table
-            to_column = field.remote_field.model._meta.get_field(field.remote_field.field_name).column
+            to_column = field.remote_field.model._meta.get_field(
+                field.remote_field.field_name
+            ).column
             definition += " " + self.sql_create_column_inline_fk % {
-                'name': self._fk_constraint_name(model, field, constraint_suffix),
-                'column': self.quote_name(field.column),
-                'to_table': self.quote_name(to_table),
-                'to_column': self.quote_name(to_column),
+                "name": self._fk_constraint_name(model, field, constraint_suffix),
+                "column": self.quote_name(field.column),
+                "to_table": self.quote_name(to_table),
+                "to_column": self.quote_name(to_column),
             }
         # Build the SQL and run it
         sql = self.sql_create_column % {
@@ -62,7 +64,8 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         effective_default = self.effective_default(field)
         if effective_default is not None:
             self.execute(
-                "UPDATE %(table)s SET %(column)s=%%s" % {
+                "UPDATE %(table)s SET %(column)s=%%s"
+                % {
                     "table": self.quote_name(model._meta.db_table),
                     "column": self.quote_name(field.column),
                 },
@@ -74,9 +77,11 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         if not field.null:
             db_params = field.db_parameters(connection=self.connection)
             self.execute(
-                self.sql_alter_column % {
+                self.sql_alter_column
+                % {
                     "table": self.quote_name(model._meta.db_table),
-                    "changes": self.sql_alter_column_not_null % {
+                    "changes": self.sql_alter_column_not_null
+                    % {
                         "column": self.quote_name(field.column),
                         "type": db_params["type"],
                     },
@@ -90,7 +95,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         # Check for fields that aren't actually columns (e.g. M2M)
         if sql is None:
             return None, None
-        collation = db_params.get('collation')
+        collation = db_params.get("collation")
         if collation:
             sql += self._collate_sql(collation)
         if not field.null and not exclude_not_null:
@@ -123,11 +128,26 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             [],
         )
 
-    def _alter_field(self, model, old_field, new_field, old_type, new_type,
-                     old_db_params, new_db_params, strict=False):
+    def _alter_field(
+        self,
+        model,
+        old_field,
+        new_field,
+        old_type,
+        new_type,
+        old_db_params,
+        new_db_params,
+        strict=False,
+    ):
         super()._alter_field(
-            model, old_field, new_field, old_type, new_type,
-            old_db_params, new_db_params, strict,
+            model,
+            old_field,
+            new_field,
+            old_type,
+            new_type,
+            old_db_params,
+            new_db_params,
+            strict,
         )
         auto_fields = self.connection.data_types_suffix
         old_internal_type = old_field.get_internal_type()
@@ -137,19 +157,24 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         # a sequence to the column.
         if old_internal_type not in auto_fields and new_internal_type in auto_fields:
             raise NotSupportedError(
-                "Changing field %(field_name)s to %(field_type)s isn't supported." % {
-                    'field_name': old_field.name,
-                    'field_type': new_internal_type,
+                "Changing field %(field_name)s to %(field_type)s isn't supported."
+                % {
+                    "field_name": old_field.name,
+                    "field_type": new_internal_type,
                 }
             )
         # If migrating away from AutoField, drop AUTOINCREMENT.
         if old_internal_type in auto_fields and new_internal_type not in auto_fields:
-            self.execute(self.sql_alter_column % {
-                "table": self.quote_name(model._meta.db_table),
-                "changes": self.sql_alter_column_no_default % {
-                    "column": self.quote_name(new_field.column),
-                },
-            })
+            self.execute(
+                self.sql_alter_column
+                % {
+                    "table": self.quote_name(model._meta.db_table),
+                    "changes": self.sql_alter_column_no_default
+                    % {
+                        "column": self.quote_name(new_field.column),
+                    },
+                }
+            )
 
     def quote_value(self, value):
         if isinstance(value, str):
