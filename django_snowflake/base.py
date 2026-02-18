@@ -186,21 +186,25 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             - {"pool", "max_overflow", "pool_size", "pre_ping"}
         }
 
-        logger.info(f"Creating pool for {self.alias} with params: {kwargs}")
+        logger.debug(f"Creating pool for {self.alias} with params: {kwargs}")
         POOL_CONTAINER.set(
             self.alias, pool.QueuePool(lambda: self.create_connection(params), **kwargs)
         )
 
     @async_unsafe
     def get_new_connection(self, conn_params):
-        if self.should_use_pool(conn_params):
-            self.create_pool_if_not_exists(conn_params)
+        try:
+            if self.should_use_pool(conn_params):
+                self.create_pool_if_not_exists(conn_params)
 
-            logger.info(f"Getting connection from pool for {self.alias}.")
-            return POOL_CONTAINER.get(self.alias).connect()
+                logger.debug(f"Getting connection from pool for {self.alias}.")
+                return POOL_CONTAINER.get(self.alias).connect()
 
-        logger.info(f"Creating new connection for {self.alias}.")
-        return self.create_connection(conn_params)
+            logger.debug(f"Creating new connection for {self.alias}.")
+            return self.create_connection(conn_params)
+        except Exception as e:
+            logger.error(f"Failed to get new connection for {self.alias}: {e}")
+            raise
 
     def ensure_timezone(self):
         if self.connection is None:
