@@ -1,12 +1,14 @@
 import logging
 import os
+import time
 
 from django.core.exceptions import ImproperlyConfigured
 from django.db.backends.base.base import NO_DB_ALIAS, BaseDatabaseWrapper
 from django.utils.asyncio import async_unsafe
 
+from django_snowflake.cursor import TimingCursorWrapper
 from django_snowflake.pool import POOL_CONTAINER
-from django_snowflake.utils import is_running_tests
+from django_snowflake.utils import is_running_migrations, is_running_tests
 
 try:
     import snowflake.connector as Database
@@ -17,11 +19,6 @@ try:
     import sqlalchemy.pool as pool
 except ImportError as e:
     raise ImproperlyConfigured("Error loading sqlalchemy module: %s" % e)
-
-try:
-    from snowflake.sqlalchemy.snowdialect import SnowflakeDialect
-except ImportError as e:
-    raise ImproperlyConfigured("Error loading snowflake.sqlalchemy module: %s" % e)
 
 # Some of these import snowflake connector, so import them after checking if it's installed.
 from . import __version__  # NOQA isort:skip
@@ -154,15 +151,23 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             conn_params["pool"] = True
             conn_params["max_overflow"] = pool_config.get("MAX_OVERFLOW", 10)
             conn_params["pool_size"] = pool_config.get("POOL_SIZE", 5)
-            conn_params["pre_ping"] = pool_config.get("PRE_PING", True)
+            # Recycle connections before Snowflake's 4-hour session timeout to avoid
+            # stale connections without the per-checkout RTT cost of pre_ping.
+            conn_params["pool_recycle"] = pool_config.get("POOL_RECYCLE", 3600)
 
         return conn_params
 
     def create_connection(self, conn_params):
-        return Database.connect(**conn_params)
+        start = time.monotonic()
+        conn = Database.connect(**conn_params)
+        elapsed = (time.monotonic() - start) * 1000
+        logger.debug(
+            f"[{self.alias}] new Snowflake connection established in {elapsed:.2f}ms"
+        )
+        return conn
 
     def should_use_pool(self, conn_params):
-        if self.alias == NO_DB_ALIAS or is_running_tests():
+        if self.alias == NO_DB_ALIAS or is_running_tests() or is_running_migrations():
             return False
 
         # Do we have pooling enabled in the config.
@@ -177,14 +182,13 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             "max_overflow": conn_params.get("max_overflow"),
             # Max number of connections in pool.
             "pool_size": conn_params.get("pool_size"),
-            # Check connection is still valid before using.
-            "pre_ping": conn_params.get("pre_ping"),
-            "dialect": SnowflakeDialect(),
+            # Recycle connections older than this many seconds.
+            "recycle": conn_params.get("pool_recycle"),
         }
         params = {
             k: conn_params[k]
             for k in conn_params.keys()
-            - {"pool", "max_overflow", "pool_size", "pre_ping"}
+            - {"pool", "max_overflow", "pool_size", "pool_recycle"}
         }
 
         logger.debug(f"Creating pool for {self.alias} with params: {kwargs}")
@@ -198,44 +202,86 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             if self.should_use_pool(conn_params):
                 self.create_pool_if_not_exists(conn_params)
 
-                logger.debug(f"Getting connection from pool for {self.alias}.")
-                return POOL_CONTAINER.get(self.alias).connect()
+                start = time.monotonic()
+                conn = POOL_CONTAINER.get(self.alias).connect()
+                elapsed = (time.monotonic() - start) * 1000
+                logger.debug(f"[{self.alias}] pool checkout in {elapsed:.2f}ms")
+                return conn
 
-            logger.debug(f"Creating new connection for {self.alias}.")
+            logger.debug(f"[{self.alias}] no pool, creating direct connection")
             return self.create_connection(conn_params)
         except Exception as e:
             logger.error(f"Failed to get new connection for {self.alias}: {e}")
             raise
 
+    def _raw_connection(self):
+        """Return the underlying raw snowflake connection, unwrapping pool proxies."""
+        conn = self.connection
+        return getattr(conn, "driver_connection", None) or conn
+
     def ensure_timezone(self):
         if self.connection is None:
             return False
+        timezone_name = self.timezone_name
+        if not timezone_name:
+            return False
+
+        raw = self._raw_connection()
+        if getattr(raw, "_django_timezone", None) == timezone_name:
+            logger.debug(f"[{self.alias}] timezone cache hit, skipping SHOW PARAMETERS")
+            return False
+
+        start = time.monotonic()
         with self.connection.cursor() as cursor:
             conn_timezone_name = cursor.execute(
                 "SHOW PARAMETERS LIKE 'TIMEZONE'"
             ).fetchone()[1]
-        timezone_name = self.timezone_name
-        if timezone_name and conn_timezone_name != timezone_name:
+        logger.debug(
+            f"[{self.alias}] SHOW PARAMETERS LIKE 'TIMEZONE' in {(time.monotonic() - start) * 1000:.2f}ms, got {conn_timezone_name!r}"
+        )
+
+        if conn_timezone_name != timezone_name:
+            start = time.monotonic()
             with self.connection.cursor() as cursor:
                 cursor.execute("ALTER SESSION SET TIMEZONE=%s", [timezone_name])
+            logger.debug(
+                f"[{self.alias}] ALTER SESSION SET TIMEZONE={timezone_name!r} in {(time.monotonic() - start) * 1000:.2f}ms"
+            )
+            raw._django_timezone = timezone_name
             return True
+
+        raw._django_timezone = timezone_name
         return False
 
     def init_connection_state(self):
-        # AUTOINCREMENT IDs must be monotonically increasing in order for
-        # DatabaseOperations.last_insert_id() to fetch the correct ID.
-        with self.connection.cursor() as cursor:
-            cursor.execute("ALTER SESSION SET NOORDER_SEQUENCE_AS_DEFAULT=False")
+        start = time.monotonic()
+        raw = self._raw_connection()
+
+        if not getattr(raw, "_django_session_initialized", False):
+            alter_start = time.monotonic()
+            with self.connection.cursor() as cursor:
+                cursor.execute("ALTER SESSION SET NOORDER_SEQUENCE_AS_DEFAULT=False")
+            logger.debug(
+                f"[{self.alias}] ALTER SESSION SET NOORDER_SEQUENCE_AS_DEFAULT in {(time.monotonic() - alter_start) * 1000:.2f}ms"
+            )
+            raw._django_session_initialized = True
+        else:
+            logger.debug(
+                f"[{self.alias}] session already initialized, skipping ALTER SESSION"
+            )
+
         timezone_changed = self.ensure_timezone()
         if timezone_changed:
-            # Commit after setting the time zone (see #17062)
-            # (This is copied from the postgresql backend.)
             if not self.get_autocommit():
                 self.connection.commit()
 
+        logger.debug(
+            f"[{self.alias}] init_connection_state total: {(time.monotonic() - start) * 1000:.2f}ms"
+        )
+
     @async_unsafe
     def create_cursor(self, name=None):
-        return self.connection.cursor()
+        return TimingCursorWrapper(self.connection.cursor(), self.alias)
 
     def _set_autocommit(self, autocommit):
         with self.wrap_database_errors:

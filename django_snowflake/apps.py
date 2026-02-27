@@ -7,7 +7,7 @@ from typing import List, Optional
 
 from django.apps import AppConfig
 
-from django_snowflake.utils import is_running_tests
+from django_snowflake.utils import is_running_migrations, is_running_tests
 
 logger = logging.getLogger(__name__)
 
@@ -16,10 +16,13 @@ class DjangoSnowflakeConfig(AppConfig):
     name = "django_snowflake"
     verbose_name = "Django Snowflake"
 
-    _warmup_thread: Optional[threading.Thread] = None
-    _warmup_lock: threading.Lock = threading.Lock()
-    _has_warmup_started: bool = False
-    _stop_event = threading.Event()
+    def __init__(self, app_name, app_module):
+        super().__init__(app_name, app_module)
+
+        self._has_warmup_started: bool = False
+        self._warmup_thread: Optional[threading.Thread] = None
+        self._warmup_lock: threading.Lock = threading.Lock()
+        self._stop_event = threading.Event()
 
     def _get_databases(self) -> List[dict[str, str | int]]:
         """
@@ -77,7 +80,7 @@ class DjangoSnowflakeConfig(AppConfig):
 
                 if not connection_wrapper.should_use_pool(conn_params):
                     logger.info(f"Pooling not enabled for '{alias}', skipping warm-up.")
-                    return
+                    continue
 
                 connection_wrapper.create_pool_if_not_exists(conn_params)
                 POOL_CONTAINER.warm_pool(alias, pool_size, exit_event=self._stop_event)
@@ -107,6 +110,10 @@ class DjangoSnowflakeConfig(AppConfig):
         """
         if is_running_tests():
             logger.debug("Test environment detected - skipping pool warming")
+            return
+
+        if is_running_migrations():
+            logger.debug("Migration detected - skipping pool warming")
             return
 
         logger.info("DjangoSnowflakeConfig.ready() called - initiating pool warming")

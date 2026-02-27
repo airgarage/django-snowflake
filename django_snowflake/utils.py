@@ -44,3 +44,14 @@ def is_running_tests() -> bool:
         return True
 
     return False
+
+
+migration_commands = {"migrate", "makemigrations", "sqlmigrate", "showmigrations"}
+
+
+def is_running_migrations() -> bool:
+    """
+    Detect if Django is running migrations (manage.py migrate or makemigrations).
+    Returns True if migrations are being run, False otherwise.
+    """
+    return bool(migration_commands.intersection(sys.argv))
