@@ -1,21 +1,44 @@
 # Snowflake backend for Django
 
-## AirGarage Specific Notes
+## Development
 
-### Testing
+This project uses [uv](https://docs.astral.sh/uv/) for environment and dependency management.
 
-To test Django Snowflake locally, update `dev_requirements.txt` in the Django project you want to test in.
-You need to tell pip to autoload the package so it picks up any new changes, you can do this by replacing `django-snowflake` in that `dev_requirements.txt` file to:
+### Setup
 
-**Replace all of this**
-```python
+```bash
+# Install uv (macOS / Linux)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Clone and sync
+git clone https://github.com/airgarage/django-snowflake.git
+cd django-snowflake
+uv sync
+```
+
+`uv sync` creates `.venv/` and installs the project plus the `dev` dependency group (ruff).
+
+### Common commands
+
+```bash
+uv run ruff check .          # Lint
+uv run ruff check --fix .    # Lint with autofix
+uv run ruff format .         # Format
+uv build                     # Build sdist + wheel into dist/
+```
+
+### Testing changes inside a consuming Django app (AirGarage)
+
+To pick up local changes in a Django project that depends on `django-snowflake`, install this checkout as an editable dependency in that project's environment.
+
+**Replace this in the consuming project's requirements file:**
+```
 django-snowflake @ git+https://github.com/airgarage/django-snowflake.git@[hash]
 ```
 
-
-**With this**
-```python
--e [path_to_django_snowflake_project] # For me (Dylan) it's under /Users/dylan/projects/django-snowflake
+**With an editable path install:**
+```
+-e /absolute/path/to/django-snowflake
 ```
 
 ## Install and usage

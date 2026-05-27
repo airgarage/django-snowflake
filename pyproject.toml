@@ -1,0 +1,65 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "django-snowflake"
+description = "Django backend for Snowflake"
+readme = "README.md"
+license = { text = "MIT License" }
+maintainers = [
+    { name = "Tim Graham", email = "timograham@gmail.com" },
+]
+requires-python = ">=3.11"
+dynamic = ["version"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Framework :: Django",
+    "Framework :: Django :: 6.0",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+dependencies = [
+    "django>=4.2,<6.1",
+    "snowflake-connector-python>=3.6.0",
+    "sqlalchemy>=2.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/Snowflake-Labs/django-snowflake"
+Source = "https://github.com/Snowflake-Labs/django-snowflake"
+Tracker = "https://github.com/Snowflake-Labs/django-snowflake/issues"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.6.0",
+]
+
+[tool.hatch.version]
+path = "django_snowflake/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["django_snowflake"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/django_snowflake",
+    "/CHANGELOG.md",
+    "/LEGAL.md",
+    "/LICENSE",
+    "/README.md",
+]
+
+[tool.ruff]
+line-length = 119
+
+[tool.ruff.lint]
+extend-select = ["I"]
+
+[tool.ruff.lint.isort]
+combine-as-imports = true

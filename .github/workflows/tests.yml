@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - '**.py'
-      - '!setup.py'
+      - 'pyproject.toml'
       - '.github/workflows/tests.yml'
 
 jobs:
@@ -24,14 +24,17 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install libmemcached-dev
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          python-version: '3.12'
       - name: Install Django and its Python test dependencies
         run: |
-          pip3 install -U pip
           cd django_repo/tests/
-          pip3 install -e ..
-          pip3 install -r requirements/py3.txt
+          uv pip install --system -e ..
+          uv pip install --system -r requirements/py3.txt
       - name: install the django-snowflake backend
-        run: pip3 install .
+        run: uv pip install --system .
       - name: Copy the test settings file
         run: cp .github/workflows/snowflake_settings.py django_repo/tests/
       - name: Run the tests
