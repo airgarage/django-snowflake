@@ -24,10 +24,12 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install libmemcached-dev
-      - name: Install uv
-        uses: astral-sh/setup-uv@v3
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
       - name: Install Django and its Python test dependencies
         run: |
           cd django_repo/tests/
