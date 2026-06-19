@@ -6,6 +6,7 @@ import threading
 from typing import List, Optional
 
 from django.apps import AppConfig
+from django.core.exceptions import ImproperlyConfigured
 
 from django_snowflake.utils import is_running_migrations, is_running_tests
 
@@ -87,6 +88,10 @@ class DjangoSnowflakeConfig(AppConfig):
 
                 logger.info(
                     f"Successfully warmed up pool for '{alias}' with {pool_size} connections."
+                )
+            except ImproperlyConfigured as e:
+                logger.warning(
+                    f"Improperly configured Snowflake connection '{alias}': {e}"
                 )
             except Exception as e:
                 logger.error(

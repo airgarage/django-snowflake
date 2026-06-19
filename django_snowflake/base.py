@@ -17,6 +17,7 @@ except ImportError as e:
 
 try:
     import sqlalchemy.pool as pool
+    from sqlalchemy.pool.base import _ConnDialect
 except ImportError as e:
     raise ImproperlyConfigured("Error loading sqlalchemy module: %s" % e)
 
@@ -31,6 +32,34 @@ from .schema import DatabaseSchemaEditor  # NOQA isort:skip
 
 
 logger = logging.getLogger(__name__)
+
+
+class _SnowflakePingDialect(_ConnDialect):
+    """
+    Pool dialect that implements pre_ping for raw Snowflake DBAPI connections.
+
+    A bare ``QueuePool`` is constructed without a SQLAlchemy dialect, so its
+    default stub dialect raises ``NotImplementedError`` from ``_do_ping_w_event``.
+    Enabling ``pre_ping=True`` on that bare pool would therefore crash on every
+    checkout. This dialect supplies a real ``SELECT 1`` ping instead.
+
+    Returning ``False`` tells the pool the connection is dead; the pool then
+    transparently reconnects on checkout and lazily invalidates the rest of the
+    cohort by timestamp (no eager mass-reconnect). Any ping failure means the
+    connection is unusable, so we treat all of them the same way.
+    """
+
+    def _do_ping_w_event(self, dbapi_connection):
+        try:
+            cursor = dbapi_connection.cursor()
+            try:
+                cursor.execute("SELECT 1")
+            finally:
+                cursor.close()
+            return True
+        except Exception as e:
+            logger.warning(f"Snowflake pre-ping failed, recycling connection: {e}")
+            return False
 
 
 class DatabaseWrapper(BaseDatabaseWrapper):
@@ -151,9 +180,8 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             conn_params["pool"] = True
             conn_params["max_overflow"] = pool_config.get("MAX_OVERFLOW", 10)
             conn_params["pool_size"] = pool_config.get("POOL_SIZE", 5)
-            # Recycle connections before Snowflake's 4-hour session timeout to avoid
-            # stale connections without the per-checkout RTT cost of pre_ping.
             conn_params["pool_recycle"] = pool_config.get("POOL_RECYCLE", 3600)
+            conn_params["pre_ping"] = pool_config.get("PRE_PING", False)
 
         return conn_params
 
@@ -177,6 +205,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         if POOL_CONTAINER.has(self.alias):
             return
 
+        pre_ping = conn_params.get("pre_ping", False)
         kwargs = {
             # Max number of connections to allow in the pool if high traffic.
             "max_overflow": conn_params.get("max_overflow"),
@@ -184,11 +213,18 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             "pool_size": conn_params.get("pool_size"),
             # Recycle connections older than this many seconds.
             "recycle": conn_params.get("pool_recycle"),
+            # Test connections with SELECT 1 on checkout when enabled.
+            "pre_ping": pre_ping,
         }
+        # A bare QueuePool's default dialect cannot ping; only supply our ping
+        # dialect when pre_ping is enabled so the default path stays untouched.
+        if pre_ping:
+            kwargs["dialect"] = _SnowflakePingDialect()
+
         params = {
             k: conn_params[k]
             for k in conn_params.keys()
-            - {"pool", "max_overflow", "pool_size", "pool_recycle"}
+            - {"pool", "max_overflow", "pool_size", "pool_recycle", "pre_ping"}
         }
 
         logger.debug(f"Creating pool for {self.alias} with params: {kwargs}")

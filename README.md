@@ -63,6 +63,18 @@ DATABASES = {
 }
 ```
 
+Supported `POOL` keys:
+
+- `IS_ENABLED` (default `False`): turn pooling on for this database.
+- `POOL_SIZE` (default `5`): number of persistent connections kept in the pool.
+- `MAX_OVERFLOW` (default `10`): extra connections allowed beyond `POOL_SIZE` under load.
+- `POOL_RECYCLE` (default `3600`): recycle connections older than this many seconds
+  to avoid age-based staleness.
+- `PRE_PING` (default `False`): when `True`, run a lightweight `SELECT 1` on each
+  checkout of a non-fresh connection and transparently reconnect if it has died.
+  This costs one extra round-trip per checkout, so leave it off if `POOL_RECYCLE`
+  already covers your staleness needs.
+
 ## Persistent connections
 
 To use persisent connections, set Django's [`CONN_MAX_AGE`](https://docs.djangoproject.com/en/stable/ref/databases/#persistent-connections)
