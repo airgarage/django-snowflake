@@ -1,7 +1,5 @@
 import atexit
 import logging
-import os
-import sys
 import threading
 from typing import List, Optional
 
