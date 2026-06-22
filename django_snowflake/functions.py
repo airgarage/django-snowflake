@@ -1,12 +1,5 @@
 from django.db.models.functions import (
-    SHA224,
-    SHA256,
-    SHA384,
-    SHA512,
-    Ceil,
-    Collate,
-    ConcatPair,
-    Random,
+    SHA224, SHA256, SHA384, SHA512, Ceil, Collate, ConcatPair, Random,
     StrIndex,
 )
 
