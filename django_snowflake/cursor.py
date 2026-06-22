@@ -1,6 +1,8 @@
 import logging
 import time
 
+from django_snowflake.heartbeat import HEARTBEAT
+
 logger = logging.getLogger(__name__)
 
 
@@ -10,6 +12,7 @@ class TimingCursorWrapper:
         self.alias = alias
 
     def execute(self, sql, params=None):
+        HEARTBEAT.record_query(self.alias)
         start = time.monotonic()
         try:
             if params is None:
@@ -22,6 +25,7 @@ class TimingCursorWrapper:
             )
 
     def executemany(self, sql, param_list):
+        HEARTBEAT.record_query(self.alias)
         start = time.monotonic()
         try:
             return self.cursor.executemany(sql, param_list)

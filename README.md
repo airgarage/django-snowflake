@@ -75,6 +75,34 @@ Supported `POOL` keys:
   This costs one extra round-trip per checkout, so leave it off if `POOL_RECYCLE`
   already covers your staleness needs.
 
+## Warehouse heartbeat
+
+Snowflake warehouses suspend after `AUTO_SUSPEND` seconds of inactivity, and the
+next query pays a resume penalty (often several hundred ms). Connection pooling
+does not prevent this: `AUTO_SUSPEND` governs compute, not connections, so pooled
+connections survive a suspend while the warehouse itself goes cold.
+
+When pooling is enabled, this backend runs a traffic-aware heartbeat that issues a
+lightweight `SELECT 1` on an interval to keep the warehouse warm during active
+windows, and stops once traffic has been idle long enough that letting the
+warehouse suspend is cheaper. It runs as a daemon thread per worker process,
+started lazily on the first Snowflake connection (so it never starts in a Gunicorn
+`preload_app` master) and is reset across `fork()` so each worker runs its own.
+
+Configure it via Django settings or environment variables (settings take
+precedence):
+
+- `SNOWFLAKE_HEARTBEAT_ENABLED` (default `True`): turn the heartbeat on/off.
+- `SNOWFLAKE_HEARTBEAT_INTERVAL` (default `45`): seconds between pings. Must be
+  less than the warehouse `AUTO_SUSPEND`.
+- `SNOWFLAKE_HEARTBEAT_IDLE_THRESHOLD` (default `900`): seconds with no real query
+  after which the heartbeat stops and the warehouse is allowed to suspend. A new
+  real query resumes the heartbeat automatically.
+
+The heartbeat query is tagged with the comment `django_snowflake:heartbeat`. To
+keep these `SELECT 1` spans out of Datadog APM, add a `ddtrace` trace filter in
+your app that drops spans whose resource contains that tag.
+
 ## Persistent connections
 
 To use persisent connections, set Django's [`CONN_MAX_AGE`](https://docs.djangoproject.com/en/stable/ref/databases/#persistent-connections)

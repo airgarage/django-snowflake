@@ -7,6 +7,7 @@ from django.db.backends.base.base import NO_DB_ALIAS, BaseDatabaseWrapper
 from django.utils.asyncio import async_unsafe
 
 from django_snowflake.cursor import TimingCursorWrapper
+from django_snowflake.heartbeat import HEARTBEAT
 from django_snowflake.pool import POOL_CONTAINER
 from django_snowflake.utils import is_running_migrations, is_running_tests
 
@@ -237,6 +238,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         try:
             if self.should_use_pool(conn_params):
                 self.create_pool_if_not_exists(conn_params)
+                HEARTBEAT.ensure_started(self.alias)
 
                 start = time.monotonic()
                 conn = POOL_CONTAINER.get(self.alias).connect()
