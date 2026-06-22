@@ -3,8 +3,8 @@ name: Unit Tests
 on:
   pull_request:
     paths:
-      - '**.py'
-      - '.github/workflows/unit-tests.yml'
+      - "**.py"
+      - ".github/workflows/unit-tests.yml"
 
 jobs:
   pytest:
@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.12', '3.13', '3.14']
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
     steps:
       - name: Checkout
         uses: actions/checkout@v4

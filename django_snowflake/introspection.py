@@ -1,8 +1,7 @@
 from collections import namedtuple
 
 from django.db.backends.base.introspection import (
-    BaseDatabaseIntrospection,
-    FieldInfo as BaseFieldInfo,
+    BaseDatabaseIntrospection, FieldInfo as BaseFieldInfo,
     TableInfo as BaseTableInfo,
 )
 from django.utils.regex_helper import _lazy_re_compile
