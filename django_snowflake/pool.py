@@ -1,7 +1,9 @@
-import sqlalchemy
 import logging
+import os
 import threading
 from typing import Any, List
+
+import sqlalchemy
 
 logger = logging.getLogger(__name__)
 
@@ -76,3 +78,31 @@ class ConnectionPool(dict):
 
 
 POOL_CONTAINER = ConnectionPool()
+
+
+def _after_fork_in_child() -> None:
+    """
+    Reset pool state in a forked child (e.g. a Gunicorn worker).
+
+    Connections established before fork() share OS sockets with the parent and
+    cannot be used safely in the child. We drop the inherited pools (without
+    gracefully closing them, which would log out the shared session and disrupt
+    the parent) so each worker lazily builds its own connections, and we reset
+    the inherited lock in case the parent held it at fork time. The heartbeat
+    manager's threads are reset too, since threads do not survive fork().
+
+    With lazy, per-worker startup the parent normally holds no Snowflake
+    connections at all, so this is defensive insurance rather than the common path.
+    """
+    POOL_CONTAINER.lock = threading.Lock()
+    POOL_CONTAINER.clear()
+    try:
+        from .heartbeat import HEARTBEAT
+
+        HEARTBEAT.reset_after_fork()
+    except Exception as e:  # pragma: no cover - best effort
+        logger.debug(f"Heartbeat reset after fork skipped: {e}")
+
+
+if hasattr(os, "register_at_fork"):
+    os.register_at_fork(after_in_child=_after_fork_in_child)

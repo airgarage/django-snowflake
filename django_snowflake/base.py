@@ -7,6 +7,7 @@ from django.db.backends.base.base import NO_DB_ALIAS, BaseDatabaseWrapper
 from django.utils.asyncio import async_unsafe
 
 from django_snowflake.cursor import TimingCursorWrapper
+from django_snowflake.heartbeat import HEARTBEAT
 from django_snowflake.pool import POOL_CONTAINER
 from django_snowflake.utils import is_running_migrations, is_running_tests
 
@@ -237,6 +238,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         try:
             if self.should_use_pool(conn_params):
                 self.create_pool_if_not_exists(conn_params)
+                HEARTBEAT.ensure_started(self.alias)
 
                 start = time.monotonic()
                 conn = POOL_CONTAINER.get(self.alias).connect()
@@ -272,16 +274,20 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             conn_timezone_name = cursor.execute(
                 "SHOW PARAMETERS LIKE 'TIMEZONE'"
             ).fetchone()[1]
+        elapsed = (time.monotonic() - start) * 1000
         logger.debug(
-            f"[{self.alias}] SHOW PARAMETERS LIKE 'TIMEZONE' in {(time.monotonic() - start) * 1000:.2f}ms, got {conn_timezone_name!r}"
+            f"[{self.alias}] SHOW PARAMETERS LIKE 'TIMEZONE' in "
+            f"{elapsed:.2f}ms, got {conn_timezone_name!r}"
         )
 
         if conn_timezone_name != timezone_name:
             start = time.monotonic()
             with self.connection.cursor() as cursor:
                 cursor.execute("ALTER SESSION SET TIMEZONE=%s", [timezone_name])
+            elapsed = (time.monotonic() - start) * 1000
             logger.debug(
-                f"[{self.alias}] ALTER SESSION SET TIMEZONE={timezone_name!r} in {(time.monotonic() - start) * 1000:.2f}ms"
+                f"[{self.alias}] ALTER SESSION SET TIMEZONE={timezone_name!r} "
+                f"in {elapsed:.2f}ms"
             )
             raw._django_timezone = timezone_name
             return True
@@ -297,8 +303,10 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             alter_start = time.monotonic()
             with self.connection.cursor() as cursor:
                 cursor.execute("ALTER SESSION SET NOORDER_SEQUENCE_AS_DEFAULT=False")
+            elapsed = (time.monotonic() - alter_start) * 1000
             logger.debug(
-                f"[{self.alias}] ALTER SESSION SET NOORDER_SEQUENCE_AS_DEFAULT in {(time.monotonic() - alter_start) * 1000:.2f}ms"
+                f"[{self.alias}] ALTER SESSION SET NOORDER_SEQUENCE_AS_DEFAULT "
+                f"in {elapsed:.2f}ms"
             )
             raw._django_session_initialized = True
         else:

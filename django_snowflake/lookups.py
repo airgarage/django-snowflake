@@ -1,7 +1,5 @@
 from django.db.models.fields.json import (
-    HasKeyLookup,
-    KeyTextTransform,
-    KeyTransform,
+    HasKeyLookup, KeyTextTransform, KeyTransform,
 )
 
 
